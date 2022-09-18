@@ -1,9 +1,17 @@
-#
-# pip install PyAutoGUI
-# pip install Pillow
-# pip install yolov5
-# pip install keyboard
-#
+'''
+ pip install PyAutoGUI
+ pip install Pillow
+ pip install yolov5
+ pip install keyboard
+
+    минимально достижимый "шаг" смещения прицела:
+        - минимальный импульс:  0.0152 сеунды
+        - cреденее перемещение: 3,7 пикселя
+
+    Для того чтобы переместить прицел на меньшее расстояние, чем длина
+    минимального импульса, можно сдвинуть дальше и вернуть чуть меньше.
+    Такая схема реализуется при использовании задержки 0.13 к 0.12
+'''
 import torch
 import pyautogui
 import numpy
@@ -14,8 +22,12 @@ import time
 run = True  # переменная рабочего цикла
 
 # границы скриншота для поиска мишени
-border_left = 10
-border_right = 1500
+window_width = 1600
+window_height = 900
+window_x0 = 2
+window_x1 = window_x0 + window_width
+window_y0 = 32
+window_y1 = window_y0 + window_height
 
 # x-коррдинаты прицела
 aim_x = 0.0
@@ -163,8 +175,9 @@ def aiming(x, y):
 # нажать при наведенном точно в центр мишени оружии
 def aim_calibtation():
     global aim_x, aim_y, model
+    global window_x0, window_y0, window_x1, window_y1
 
-    img = pyautogui.screenshot(region=(border_left, 242, border_right, 500))
+    img = pyautogui.screenshot(region=(window_x0, window_y0, window_x1, window_y1))
     my_t = model(img).xyxy[0]
     my_n = my_t.numpy()
     if numpy.size(my_n) > 0:
@@ -185,22 +198,20 @@ keyboard.add_hotkey('right shift', aim_calibtation)
 keyboard.add_hotkey('right ctrl', robot_stop)
 
 
-control = 0
+erros_ctrl= 0
 while run:
-    image = pyautogui.screenshot(region=(border_left, 242, border_right, 500))
+    image = pyautogui.screenshot(region=(window_x0, window_y0, window_x1, window_y1))
     t = model(image).xyxy[0]
-    n = t.numpy()
+    target = t.numpy()
 
     # Если больше 100 секунд нет обнаружения, то прекратить выполнение
-    if control > 100: robot_stop()
+    if erros_ctrl> 100: robot_stop()
 
-    if numpy.size(n) > 0:
-        target_x = n[0, 0]
-        target_y = n[0, 1]
-        aiming(target_x, target_y)
-        control = 0
+    if numpy.size(target) > 0:
+        aiming(target[0, 0], target[0, 1])
+        erros_ctrl= 0
     else:
         print("no target found")
         time.sleep(1.0) # подождать 1 секунду
-        control += 1    # подсчет числа ошибок обнаружения идущих подряд
+        erros_ctrl+= 1    # подсчет числа ошибок обнаружения идущих подряд
 
