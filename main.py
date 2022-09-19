@@ -4,12 +4,12 @@
  pip install yolov5
  pip install keyboard
 
-    минимально достижимый "шаг" смещения прицела:
-        - минимальный импульс:  0.0152 сеунды
-        - cреденее перемещение: 3,7 пикселя
+    минимально достижимый "шаг" смещения прицела = 3.7 пикселя
+    за минимальный импульс = 0.0152 сеунды
+    все более короткие импульсы вызывают смещение примерно на 3.7 пикселя
 
     Для того чтобы переместить прицел на меньшее расстояние, чем длина
-    минимального импульса, можно сдвинуть дальше и вернуть чуть меньше.
+    минимального шага, можно сдвинуть дальше и вернуть чуть меньше.
     Такая схема реализуется при использовании задержки 0.13 к 0.12
 '''
 import torch
@@ -33,9 +33,9 @@ window_y1 = window_y0 + window_height
 aim_x = 0.0
 aim_y = 0.0
 
-# Коэффициенты, управляющие продолжительностью нажатия на клавиши наводки
-kx = float(0.0033)
-ky = float(0.0033)
+kx = float(0.0152)  # Коэффициенты, управляющие продолжительностью нажатия на клавиши наводки
+ky = float(0.0152)
+aim_step = 3.7      # минимальный шаг смешения прицела
 
 # Подсчет числа шагов при наведении на мишень до выстрела
 # используется для настройки длительности нажатия на клавиши наводки
@@ -69,7 +69,6 @@ def cartridge_control():
 # Выстрел
 def shoot():
     global cartridge
-    global steps_r, steps_l, steps_u, steps_d
     steps_r = 0
     steps_l = 0
     steps_u = 0
@@ -78,48 +77,62 @@ def shoot():
     keyboard.press(key_onaim)    # навести прицел
     time.sleep(0.01)
     keyboard.release(key_onaim)
-    time.sleep(0.25)
+    time.sleep(0.5)
 
     keyboard.press(key_shoot)    # выстрел
     time.sleep(0.01)
     keyboard.release(key_shoot)
-    time.sleep(0.25)
+    time.sleep(0.5)
 
     keyboard.press(key_onaim)    # опустить оружие
     time.sleep(0.01)
     keyboard.release(key_onaim)
-    time.sleep(0.7)
+    time.sleep(0.5)
 
     cartridge_control()
 
+def aim_move(side, d):
+    global steps_r, steps_l, steps_u, steps_d
+    global kx, ky
 
-def move_x(d):
-    global kx, steps_r, steps_l
-    if d < 0:
+    rside = ''
+    key = 0
+
+    if side == 'right':
         steps_r += 1
-        keyboard.press('right')
-        time.sleep(float(kx) * float(abs(d)))
-        keyboard.release('right')
-    else:
+        rside = 'left'
+        key = kx
+
+    elif side == 'left':
         steps_l += 1
-        keyboard.press('left')
-        time.sleep(float(kx) * float(d))
-        keyboard.release('left')
+        rside = 'right'
+        key = kx
 
-
-def move_y(d):
-    global ky, steps_d, steps_u
-    if d < 0:
-        steps_d += 1
-        keyboard.press('down')
-        time.sleep(float(ky) * float(abs(d)))
-        keyboard.release('down')
-    else:
+    elif side == 'up':
         steps_u += 1
-        keyboard.press('up')
-        time.sleep(float(ky) * float(d))
-        keyboard.release('up')
+        rside = 'down'
+        key = ky
 
+    elif side == 'down':
+        steps_d += 1
+        rside = 'up'
+        key = ky
+
+    if d < aim_step:
+        keyboard.press(side)
+        time.sleep( 0.13 )
+        keyboard.release(side)
+        time.sleep( 0.1 )
+        keyboard.press(rside)
+        time.sleep( 0.12 )
+        keyboard.release(rside)
+    else:
+        pause = key * d / aim_step
+        keyboard.press(side)
+        time.sleep( pause )
+        keyboard.release(side)
+
+    time.sleep( 0.25 )
 
 def calibration(k, s1, s2):
     if (s1 == 0) and (s2 > 2):
@@ -135,39 +148,49 @@ def calibration(k, s1, s2):
 
 
 # Калибровка множителей задерки нажатия
+# TODO
 def moving_calibration():
-    global kx, ky
-    global steps_r, steps_l, steps_d, steps_u
-    kx = float(calibration(kx, steps_r, steps_l))
-    ky = float(calibration(ky, steps_d, steps_u))
-    print('kx =', kx, 'ky =', ky)
     return
+#    global kx, ky
+#    global steps_r, steps_l, steps_d, steps_u
+#    kx = float(calibration(kx, steps_r, steps_l))
+#    ky = float(calibration(ky, steps_d, steps_u))
+#    print('kx =', kx, 'ky =', ky)
+#    return
 
-
-# Прицеливание
+# Наведение и выстрел
 def aiming(x, y):
     global aim_x, aim_y
-    exactness = 0.9  # точность прицеливания
+    exactness_x = 1.75  # точность прицеливания по X
+    exactness_y = 2.5  # точность прицеливания по Y
+
     dx = aim_x - x
     dy = aim_y - y
 
-    # контроль наличия калибровки по X
-    if aim_x < 10.0:
-        return
+    # контроль наличия калибровки по X и Y
+    if aim_x < 10.0: return
+    if aim_y < 10.0: return
 
-    # контроль наличия калибровки по Y
-    if aim_y < 10.0:
-        return
-
-    if (abs(dx) < exactness) and (abs(dy) < 1.0):
+    # Выстрел
+    if (abs(dx) < exactness_x) and (abs(dy) < exactness_y):
         #moving_calibration()
         shoot()
         return
 
-    if abs(dx) >= exactness:
-        move_x(dx)
-    if abs(dy) >= 1.0:
-        move_y(dy)
+    # Наведение по горизонтали
+    if abs(dx) >= exactness_x:
+        if dx < 0:
+            aim_move('right', abs(dx))
+        else:
+            aim_move('left', dx)
+
+    # Наведение по вертикали
+    if abs(dy) >= exactness_y:
+        if dy < 0:
+            aim_move('down', abs(dy))
+        else:
+            aim_move('up', dy)
+
 
 
 # Калибровка прицела при запуске приложения.
@@ -198,20 +221,32 @@ keyboard.add_hotkey('right shift', aim_calibtation)
 keyboard.add_hotkey('right ctrl', robot_stop)
 
 
-erros_ctrl= 0
+errors_ctrl = 0  # счетчик идущих подряд ошибок обнаружения
+humans_ctrl = 0  # счетчик имитации ответа человека на заставку с [ Esc ]
+
 while run:
     image = pyautogui.screenshot(region=(window_x0, window_y0, window_x1, window_y1))
     t = model(image).xyxy[0]
     target = t.numpy()
 
-    # Если больше 100 секунд нет обнаружения, то прекратить выполнение
-    if erros_ctrl> 100: robot_stop()
+    # Если больше 12 секунд нет обнаружения, то нажать 'Esc'
+    if errors_ctrl > 12:
+        keyboard.press('Esc')
+        time.sleep(0.2)
+        keyboard.release('Esc')
+        humans_ctrl += 1
+        errors_ctrl = 0
+
+    # Если подряд 4 раза нажата 'Esc', а обнаружения нет, то прекратить выполение
+    if humans_ctrl > 4:
+        robot_stop()
 
     if numpy.size(target) > 0:
         aiming(target[0, 0], target[0, 1])
-        erros_ctrl= 0
+        errors_ctrl = 0
+        humans_ctrl = 0
     else:
         print("no target found")
-        time.sleep(1.0) # подождать 1 секунду
-        erros_ctrl+= 1    # подсчет числа ошибок обнаружения идущих подряд
+        time.sleep(1.0)      # подождать 1 секунду
+        errors_ctrl += 1     # подсчет числа идущих подряд сбоев обнаружения
 
