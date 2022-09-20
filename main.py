@@ -37,16 +37,16 @@ kx = float(0.0152)  # Коэффициенты, управляющие прод�
 ky = float(0.0152)
 aim_step = 3.7      # минимальный шаг смешения прицела
 
-# Подсчет числа шагов при наведении на мишень до выстрела
-# используется для настройки длительности нажатия на клавиши наводки
-steps_r = 0
-steps_l = 0
-steps_u = 0
-steps_d = 0
+keyb = {
+        'esc': 'Esc',  # сброс
+        'shoot': '=',  # выстрел
+        'aim': 'o',     # преключение прицела
+        'reload': 'r'  # перезарядка
+        }
 
 key_shoot      = '='      # клавиша выстрела
 key_onaim      = 'o'      # клавиша прицеливания
-full_cartridge = 8        # ёмкость магазина
+full_cartridge = 7        # ёмкость магазина
 time_reload    = 2.5      # время на перезарядку
 
 cartridge = full_cartridge  # счетчик патронов в магазине
@@ -54,115 +54,68 @@ cartridge = full_cartridge  # счетчик патронов в магазин�
 model = torch.hub.load('ultralytics/yolov5', 'custom', path='wtl_target.pt')
 
 
+def press(key, pause = 0.01):
+    keyboard.press(key)
+    time.sleep(pause)
+    keyboard.release(key)
+
+
 # перезарядка магазина
 def cartridge_control():
     global full_cartridge, cartridge, time_reload
+    global keyb
     cartridge -= 1
     if cartridge < 1:
-        keyboard.press('r')
-        time.sleep(0.01)
-        keyboard.release('r')
+        press(keyb['reload'])
         time.sleep(time_reload)
         cartridge = full_cartridge
 
 
 # Выстрел
 def shoot():
-    global cartridge
-    steps_r = 0
-    steps_l = 0
-    steps_u = 0
-    steps_d = 0
-
-    keyboard.press(key_onaim)    # навести прицел
-    time.sleep(0.01)
-    keyboard.release(key_onaim)
+    global cartridge, keyb
+    press(keyb['aim'])    # навести прицел
     time.sleep(0.5)
-
-    keyboard.press(key_shoot)    # выстрел
-    time.sleep(0.01)
-    keyboard.release(key_shoot)
+    press(keyb['shoot'])  # выстрел
     time.sleep(0.1)
-
-    keyboard.press(key_onaim)    # опустить оружие
-    time.sleep(0.01)
-    keyboard.release(key_onaim)
-    time.sleep(1.0)
-
+    press(keyb['aim'])    # опустить оружие
+    time.sleep(0.6)
     cartridge_control()
 
 def aim_move(side, d):
-    global steps_r, steps_l, steps_u, steps_d
-    global kx, ky
+    global kx, ky, aim_step
 
     rside = ''
     key = 0
 
     if side == 'right':
-        steps_r += 1
         rside = 'left'
         key = kx
-
     elif side == 'left':
-        steps_l += 1
         rside = 'right'
         key = kx
-
     elif side == 'up':
-        steps_u += 1
         rside = 'down'
         key = ky
-
     elif side == 'down':
-        steps_d += 1
         rside = 'up'
         key = ky
 
     if d < aim_step:
-        keyboard.press(side)
-        time.sleep( 0.13 )
-        keyboard.release(side)
+        press(side, 0.13)
         time.sleep( 0.1 )
-        keyboard.press(rside)
-        time.sleep( 0.12 )
-        keyboard.release(rside)
+        press(rside, 0.12)
     else:
-        pause = key * d / aim_step
-        keyboard.press(side)
-        time.sleep( pause )
-        keyboard.release(side)
+        press(side, key * d / aim_step)
 
     time.sleep( 0.25 )
 
-def keys_reconfig(k, s1, s2):
-    if (s1 == 0) and (s2 > 2):
-        k *= 1 + 0.1 * s2
-
-    if (s2 == 0) and (s1 > 2):
-        k *= 1 + 0.1 * s1
-
-    if (s1 > 0) and (s2 > 0):
-        k /= 1.01
-
-    return k
-
-
-# Калибровка множителей задерки нажатия
-# TODO
-def moution_tune():
-    return
-#    global kx, ky
-#    global steps_r, steps_l, steps_d, steps_u
-#    kx = float(keys_reconfig(kx, steps_r, steps_l))
-#    ky = float(keys_reconfig(ky, steps_d, steps_u))
-#    print('kx =', kx, 'ky =', ky)
-#    return
 
 # Наведение и выстрел
 def aiming(x, y):
     global aim_x, aim_y
-    exactness_x = 1.75  # точность прицеливания по X
-    exactness_y = 2.5   # точность прицеливания по Y
+    exactness_x = 2.0  # точность прицеливания по X
+    exactness_y = 3.5   # точность прицеливания по Y
 
     dx = aim_x - x
     dy = aim_y - y
@@ -173,7 +126,6 @@ def aiming(x, y):
 
     # Выстрел
     if (abs(dx) < exactness_x) and (abs(dy) < exactness_y):
-        #moution_tune()
         shoot()
         return
 
@@ -219,7 +171,6 @@ keyboard.add_hotkey('right shift', aim_point_setup)
 # остановка цикла
 keyboard.add_hotkey('right ctrl', robot_stop)
 
-
 errors_ctrl = 0  # счетчик идущих подряд ошибок обнаружения
 humans_ctrl = 0  # счетчик имитации ответа человека на заставку с [ Esc ]
 
@@ -230,9 +181,7 @@ while run:
 
     # Если больше 12 секунд нет обнаружения, то нажать 'Esc'
     if errors_ctrl > 12:
-        keyboard.press('Esc')
-        time.sleep(0.2)
-        keyboard.release('Esc')
+        press(keyb['esc'], 0.2)
         humans_ctrl += 1
         errors_ctrl = 0
 
