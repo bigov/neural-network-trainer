@@ -44,10 +44,10 @@ steps_l = 0
 steps_u = 0
 steps_d = 0
 
-key_shoot      = '='        # клавиша выстрела
-key_onaim      = 'o'        # клавиша прицеливания
-full_cartridge = 18         # ёмкость магазина
-time_reload    = 2.5        # время на перезарядку
+key_shoot      = '='      # клавиша выстрела
+key_onaim      = 'o'      # клавиша прицеливания
+full_cartridge = 8        # ёмкость магазина
+time_reload    = 2.5      # время на перезарядку
 
 cartridge = full_cartridge  # счетчик патронов в магазине
 
@@ -134,7 +134,7 @@ def aim_move(side, d):
 
     time.sleep( 0.25 )
 
-def calibration(k, s1, s2):
+def keys_reconfig(k, s1, s2):
     if (s1 == 0) and (s2 > 2):
         k *= 1 + 0.1 * s2
 
@@ -149,12 +149,12 @@ def calibration(k, s1, s2):
 
 # Калибровка множителей задерки нажатия
 # TODO
-def moving_calibration():
+def moution_tune():
     return
 #    global kx, ky
 #    global steps_r, steps_l, steps_d, steps_u
-#    kx = float(calibration(kx, steps_r, steps_l))
-#    ky = float(calibration(ky, steps_d, steps_u))
+#    kx = float(keys_reconfig(kx, steps_r, steps_l))
+#    ky = float(keys_reconfig(ky, steps_d, steps_u))
 #    print('kx =', kx, 'ky =', ky)
 #    return
 
@@ -162,7 +162,7 @@ def moving_calibration():
 def aiming(x, y):
     global aim_x, aim_y
     exactness_x = 1.75  # точность прицеливания по X
-    exactness_y = 2.5  # точность прицеливания по Y
+    exactness_y = 2.5   # точность прицеливания по Y
 
     dx = aim_x - x
     dy = aim_y - y
@@ -173,7 +173,7 @@ def aiming(x, y):
 
     # Выстрел
     if (abs(dx) < exactness_x) and (abs(dy) < exactness_y):
-        #moving_calibration()
+        #moution_tune()
         shoot()
         return
 
@@ -192,11 +192,10 @@ def aiming(x, y):
             aim_move('up', dy)
 
 
-
-# Калибровка прицела при запуске приложения.
+# Установка координат прицела при запуске.
 # Привязано на горячую клавишу Shift, которую следует
-# нажать при наведенном точно в центр мишени оружии
-def aim_calibtation():
+# нажать при наведя оружие точно в центр найденной мишени
+def aim_point_setup():
     global aim_x, aim_y, model
     global window_x0, window_y0, window_x1, window_y1
 
@@ -216,7 +215,7 @@ def robot_stop():
     run = False
 
 # калибровка прицела
-keyboard.add_hotkey('right shift', aim_calibtation)
+keyboard.add_hotkey('right shift', aim_point_setup)
 # остановка цикла
 keyboard.add_hotkey('right ctrl', robot_stop)
 
