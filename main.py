@@ -87,7 +87,7 @@ def shoot():
     keyboard.press(key_onaim)    # опустить оружие
     time.sleep(0.01)
     keyboard.release(key_onaim)
-    time.sleep(0.5)
+    time.sleep(1.0)
 
     cartridge_control()
 
